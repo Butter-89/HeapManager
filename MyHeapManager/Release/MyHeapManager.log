@@ -1,0 +1,11 @@
+﻿  BlockDescriptor.cpp
+  HeapManager.cpp
+  HeapManagerProxy.cpp
+  HeapManagerTest.cpp
+  main.cpp
+E:\Codes\MyHeapManager\MyHeapManager\main.cpp(6,1): warning C4326:  return type of 'main' should be 'int' instead of 'void'
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 130 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  MyHeapManager.vcxproj -> E:\Codes\MyHeapManager\Release\MyHeapManager.exe
