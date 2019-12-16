@@ -41,6 +41,7 @@ public:
 	void SortLinkedList();
 	void SwapDescriptor(BlockDescriptor* i_blockA, BlockDescriptor* i_blockB);
 	BlockDescriptor* GetFreeBlock();
+	bool CheckFreeBlock();	//check if there is available free 0 size block
 	bool SetRemaining(BlockDescriptor* i_block, void* i_startMemAddr, size_t i_size);
 	void MergeBlocks(BlockDescriptor* i_currentBlock, BlockDescriptor* i_nextBlock);
 };

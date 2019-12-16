@@ -140,9 +140,13 @@ void* HeapManager::alloc(size_t i_size)
 	return nullptr;
 }
 
-void* HeapManager::RoundUp(void* i_addr, unsigned int i_align)
+inline void* HeapManager::RoundUp(void* i_addr, unsigned int i_align)
 {
-	return reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(i_addr) + (i_align - 1)) & ~(i_align - 1));
+	uintptr_t align = static_cast<uintptr_t>(i_align);
+	//uintptr_t align_1 = static_cast<uintptr_t>(i_align - 1);
+	//uintptr_t not_align_1 = static_cast<uintptr_t>(~(i_align - 1));
+	void* aligned_addr = reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(i_addr) + (align - 1)) & static_cast<uintptr_t>(~(align - 1)));
+	return aligned_addr;
 }
 
 BlockDescriptor* HeapManager::GetFirstFreeDescriptor()
@@ -189,18 +193,13 @@ void* HeapManager::AllocateWithCurrentBlock(BlockDescriptor* pCurrent, size_t i_
 			BlockDescriptor* nextFreeBlock = pCurrent->GetNextBlock();
 
 			//Set up a new free block behind and connect them
-			std::cout << "Tring to allocate..\n";
-			void* nextFreeStartAddr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(aligned_addr) + i_size);
-			if (SetRemaining(pCurrent, nextFreeStartAddr, remainingMemSize))
+			//std::cout << "Tring to allocate..\n";
+			if (CheckFreeBlock())
 			{
-				//pCurrent->SetNextBlock(nextFreeBlock);
-			//pCurrent->GetNextBlock()->SetBlockSize(remainingMemSize);
-			//pCurrent->GetNextBlock()->SetStartMemAddr(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(aligned_addr) + i_size));
-
-			//if(p_freeBlockStartAddr->GetBlockType() == outstandingBlock)
-			//p_freeBlockStartAddr = pCurrent->GetNextBlock();//!!!!!!!!
-
-			//Set current block as outstanding
+				assert(CheckFreeBlock());
+				void* nextFreeStartAddr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(aligned_addr) + i_size);
+				SetRemaining(pCurrent, nextFreeStartAddr, remainingMemSize);
+				//Set current block as outstanding
 				if (p_outstandingBlockStartAddr == nullptr)		//if it's the first outstanding block 
 				{
 					pCurrent->SetOutstandingBlock(i_size, start_addr, aligned_addr, nullptr);
@@ -269,40 +268,47 @@ void* HeapManager::AllocateWithCurrentBlock(BlockDescriptor* pCurrent, size_t i_
 			//Store the next next block as free block
 			BlockDescriptor* nextFreeBlock = pCurrent->GetNextBlock();
 			//Set up a new free block behind and connect them
-			std::cout << "Tring to allocate without alignment...\n";
-			void* nextFreeStartAddr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(start_addr) + i_size);
-			SetRemaining(pCurrent, nextFreeStartAddr, remainingMemSize);
-
-			//Set current block as outstanding
-			if (p_outstandingBlockStartAddr == nullptr)		//if it's the first outstanding block 
+			//std::cout << "Tring to allocate without alignment...\n";
+			//see if there is enough available free block at the end
+			//assert(CheckFreeBlock());
+			if (CheckFreeBlock())
 			{
-				p_outstandingBlockStartAddr = pCurrent;
-				pCurrent->SetOutstandingBlock(i_size, start_addr, nullptr);
+				void* nextFreeStartAddr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(start_addr) + i_size);
+				SetRemaining(pCurrent, nextFreeStartAddr, remainingMemSize);
+
+				//Set current block as outstanding
+				if (p_outstandingBlockStartAddr == nullptr)		//if it's the first outstanding block 
+				{
+					p_outstandingBlockStartAddr = pCurrent;
+					pCurrent->SetOutstandingBlock(i_size, start_addr, nullptr);
+				}
+				else	//else, set the current one as the first outstanding block in the list
+				{
+					pCurrent->SetOutstandingBlock(i_size, start_addr, p_outstandingBlockStartAddr);
+					p_outstandingBlockStartAddr = pCurrent;
+				}
+
+				pAllocatedMem = pCurrent->GetMemInUseAddr();
+				/*std::cout << "Allocated mem addr: " << pAllocatedMem << " with size "
+					<< pCurrent->GetBlockSize() << " Allocation success.\n";*/
+				pCurrent->ShowAllocatedMemory();
+
+
+				//Connect to the first free block
+
+
+				//pCurrent->SetNextBlock(nextFreeBlock);
+				//pCurrent->GetNextBlock()->SetBlockSize(remainingMemSize);
+				//pCurrent->GetNextBlock()->SetStartMemAddr(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(start_addr) + i_size));
+				//p_freeBlockStartAddr = pCurrent->GetNextBlock();
+				//std::cout << "Next free block size: " << pCurrent->GetNextBlock()->GetBlockSize() << "\n";
+				//return the allocated memory
+
+				pCurrent = nullptr;
+				return pAllocatedMem;
 			}
-			else	//else, set the current one as the first outstanding block in the list
-			{
-				pCurrent->SetOutstandingBlock(i_size, start_addr, p_outstandingBlockStartAddr);
-				p_outstandingBlockStartAddr = pCurrent;
-			}
-
-			pAllocatedMem = pCurrent->GetMemInUseAddr();
-			/*std::cout << "Allocated mem addr: " << pAllocatedMem << " with size "
-				<< pCurrent->GetBlockSize() << " Allocation success.\n";*/
-			pCurrent->ShowAllocatedMemory();
-
-
-			//Connect to the first free block
-
-
-			//pCurrent->SetNextBlock(nextFreeBlock);
-			//pCurrent->GetNextBlock()->SetBlockSize(remainingMemSize);
-			//pCurrent->GetNextBlock()->SetStartMemAddr(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(start_addr) + i_size));
-			//p_freeBlockStartAddr = pCurrent->GetNextBlock();
-			//std::cout << "Next free block size: " << pCurrent->GetNextBlock()->GetBlockSize() << "\n";
-			//return the allocated memory
-
-			pCurrent = nullptr;
-			return pAllocatedMem;
+			else
+				return nullptr;
 		}
 	}
 	else
@@ -609,12 +615,12 @@ void HeapManager::SortLinkedList()
 		ptr2 = ptr1;
 		//std::cout << "Sorting!!!!!\n";
 	} while (swapped);
-	std::cout << "After sorting: \n";
-	ShowFreeBlocks();
+	//std::cout << "After sorting: \n";
+	//ShowFreeBlocks();
 	//std::cout << "Sorting complete.\n";
 }
 
-void HeapManager::SwapDescriptor(BlockDescriptor* i_blockA, BlockDescriptor* i_blockB)
+inline void HeapManager::SwapDescriptor(BlockDescriptor* i_blockA, BlockDescriptor* i_blockB)
 {
 	BlockDescriptor* a_next = i_blockA->GetNextBlock();
 	BlockDescriptor* b_next = i_blockB->GetNextBlock();
@@ -628,7 +634,7 @@ void HeapManager::SwapDescriptor(BlockDescriptor* i_blockA, BlockDescriptor* i_b
 
 BlockDescriptor* HeapManager::GetFreeBlock()
 {
-	std::cout << "Trying to get another free block\n";
+	//std::cout << "Trying to get another free block\n";
 	//ShowFreeBlocks();
 	BlockDescriptor* pCurrent = p_freeBlockStartAddr;
 	BlockDescriptor* pResult = nullptr;
@@ -640,15 +646,37 @@ BlockDescriptor* HeapManager::GetFreeBlock()
 		{
 			pResult = pCurrent->GetNextBlock();
 			//Then set up the nodes connection
+			assert(pCurrent != pCurrent->GetNextBlock());
 			pCurrent->SetNextBlock(pResult->GetNextBlock());
-			break;
+			//break;
 			return pResult;
 		}
-		assert(pCurrent != pCurrent->GetNextBlock());
+		
 		pCurrent = pCurrent->GetNextBlock();
 	}
 	//Can't find available one - should be nullptr
 	return pResult;
+}
+
+inline bool HeapManager::CheckFreeBlock()
+{
+	//std::cout << "Checking available free block...\n";
+	//ShowFreeBlocks();
+	BlockDescriptor* pCurrent = p_freeBlockStartAddr;
+	while (pCurrent->GetNextBlock() != nullptr)
+	{
+		//std::cout << "Getting free block!!!!!\n";
+		//If the next block is not used (0 size and null start address)
+		if (pCurrent->GetNextBlock()->GetBlockSize() == 0)
+		{
+			//break;
+			return true;
+		}
+
+		pCurrent = pCurrent->GetNextBlock();
+	}
+	//Can't find available one - should be nullptr
+	return false;
 }
 
 bool HeapManager::SetRemaining(BlockDescriptor* i_allocatedBlock, void* i_startMemAddr, size_t i_size)

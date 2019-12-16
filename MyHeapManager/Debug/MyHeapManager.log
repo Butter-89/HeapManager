@@ -1,2 +1,4 @@
 ﻿  HeapManager.cpp
+  HeapManagerTest.cpp
+  Generating Code...
   MyHeapManager.vcxproj -> E:\Codes\MyHeapManager\Debug\MyHeapManager.exe
